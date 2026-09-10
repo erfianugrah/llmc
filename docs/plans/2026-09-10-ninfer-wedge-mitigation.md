@@ -72,7 +72,7 @@ duration, with a real risk of leaving it wedged if the mitigations don't
 work and needing a manual `make clean` + `make deploy` to recover. Needs an
 explicit go-ahead and a window when nothing else needs the GPU.
 
-## Reproduction attempts (2026-09-10, later same day) - 6 total, 0 reproduced
+## Reproduction attempts (2026-09-10, later same day) - 7 total, 0 reproduced
 
 Six attempts against the live production `qwen38-ninfer`, one accidentally
 overlapping another session's concurrent request (apologized to the user,
@@ -106,11 +106,12 @@ line is just how the proxy reports a queued request's client disconnect,
 not a wedge symptom. The attempt-1 anomaly was the same benign case,
 not a lead.
 
-**Net result across all 6 attempts (5 documented above + this pair):
-not reproduced under any tested condition** - varying size (150k-230k
-tokens), stream true/false, abort depth (5s-35s), and single vs
-concurrent-with-queued-second-request. ninfer's own per-request log
-confirmed a clean `cancelled` + immediate slot release every single time.
+**Net result across all 6 deliberate attempts (5 documented above + this
+pair, plus a 7th real-world data point below): not reproduced under any
+tested condition** - varying size (150k-230k tokens), stream true/false,
+abort depth (5s-35s), and single vs concurrent-with-queued-second-request.
+ninfer's own per-request log confirmed a clean `cancelled` + immediate
+slot release every single time.
 The running image (`erfianugrah/ninfer:cuda13.1-sm120a-487f897` - the
 suffix is a baked-in commit short-hash, so the tag is effectively
 immutable) is the same one that produced the original wedge earlier the
@@ -156,9 +157,35 @@ recovery attempt itself could fail to fit, not just fail to fix the wedge.
   so pi capped them at its own 16384 default - the same truncation class as
   the 2026-09-07 qwen38-ninfer incident. Set to 65536 on both.
 
+## A 7th data point: a genuine production cancellation, not a synthetic test
+
+While reviewing ninfer's own container log after this session's tests, a
+real (not synthetic) client disconnect showed up on an actual growing
+agentic conversation, unrelated to any of the 6 deliberate attempts above:
+
+```
+req#30 started (85 messages, real conversation)
+req#30 cancelled at 7.0s, cache 0.0%, HTTP 499 client disconnected
+[3m52s gap]
+req#31 started (retry) - ran at normal speed: 3.03k tok/s avg, 36.7s, completed cleanly
+```
+
+A genuine mid-materialization disconnect (cache 0% confirms it was a real
+fresh prefill, not served from cache) on real production traffic, and the
+engine recovered to fully normal throughput on the very next request.
+
+For anyone re-reading this log cold: prefill tok/s DECLINING across the
+5s windows *within one request* (e.g. 6.55k -> 4.30k -> 3.48k -> 2.46k ->
+1.64k) is normal cost-of-attention-over-a-growing-KV-cache behavior, not
+the wedge signature - it happens on every reasonably-sized request in
+this log, mine included, and every one still finishes in seconds to
+~1-2 minutes. The actual wedge signature from the original incident was
+a SUSTAINED ~30 tok/s that computed to an "85-min prefill ETA" - nothing
+here gets remotely close to that.
+
 ## Next steps
 
-Six varied reproduction attempts (size, streaming, abort depth, queued
+Seven data points now (6 deliberate + this one), all clean. Varied (size, streaming, abort depth, queued
 concurrency) all came back clean, so the next attempt needs a genuinely
 different condition rather than a repeat with different numbers:
 
