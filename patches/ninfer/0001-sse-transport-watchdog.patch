@@ -1,0 +1,158 @@
+diff --git a/src/serve/anthropic_messages_http.cpp b/src/serve/anthropic_messages_http.cpp
+index 1728e68..4697485 100644
+--- a/src/serve/anthropic_messages_http.cpp
++++ b/src/serve/anthropic_messages_http.cpp
+@@ -177,6 +177,7 @@ void HttpServer::handle_messages(const httplib::Request& req, httplib::Response&
+                     };
+                     output.is_cancelled = [&] { return transport.poll(); };
+ 
++                    transport.run_watchdog();
+                     outcome = service_->run(stream->prepared, &output);
+                 } catch (const ClientDisconnected&) {
+                     lifecycle->failure(
+@@ -216,6 +217,7 @@ void HttpServer::handle_messages(const httplib::Request& req, httplib::Response&
+                 }
+                 try {
+                     transport.write(terminal);
++                    transport.finish();
+                     sink.done();
+                     return true;
+                 } catch (const ClientDisconnected&) {
+diff --git a/src/serve/http_transport.cpp b/src/serve/http_transport.cpp
+index 2840814..b18936f 100644
+--- a/src/serve/http_transport.cpp
++++ b/src/serve/http_transport.cpp
+@@ -8,6 +8,7 @@
+ #endif
+ 
+ #include <stdexcept>
++#include <thread>
+ #include <utility>
+ 
+ namespace ninfer::serve {
+@@ -77,6 +78,28 @@ bool SseTransport::poll(Clock::time_point now) {
+     return false;
+ }
+ 
++SseTransport::~SseTransport() {
++    finished_.store(true, std::memory_order_release);
++    if (watchdog_.joinable()) { watchdog_.join(); }
++}
++
++void SseTransport::run_watchdog() noexcept {
++    // Only meaningful when the socket exposes a liveness probe (SSE over a real connection).
++    // is_writable is read-only here - never write() from this thread, the worker owns the stream.
++    if (!sink_.is_writable) { return; }
++    watchdog_ = std::thread([this] {
++        while (!finished_.load(std::memory_order_acquire) &&
++               !cancelled_.load(std::memory_order_acquire)) {
++            std::this_thread::sleep_for(std::chrono::milliseconds(500));
++            if (finished_.load(std::memory_order_acquire) ||
++                cancelled_.load(std::memory_order_acquire)) {
++                break;
++            }
++            if (!sink_.is_writable()) { mark_cancelled(); break; }
++        }
++    });
++}
++
+ void configure_http_server_socket(socket_t socket) noexcept {
+     httplib::default_socket_options(socket);
+ #if defined(__linux__)
+diff --git a/src/serve/http_transport.h b/src/serve/http_transport.h
+index 22b68d4..15e19d8 100644
+--- a/src/serve/http_transport.h
++++ b/src/serve/http_transport.h
+@@ -12,6 +12,7 @@
+ #include <stdexcept>
+ #include <string>
+ #include <string_view>
++#include <thread>
+ #include <utility>
+ #include <vector>
+ 
+@@ -46,6 +47,12 @@ public:
+                           Clock::duration heartbeat_interval = kHeartbeatInterval,
+                           Clock::time_point now              = Clock::now());
+ 
++    SseTransport(const SseTransport&) = delete;
++    SseTransport& operator=(const SseTransport&) = delete;
++
++    // Joins the watchdog thread before the DataSink reference can dangle.
++    ~SseTransport();
++
+     void write(std::string_view item, Clock::time_point now = Clock::now());
+     void write(const std::vector<std::string>& items, Clock::time_point now = Clock::now());
+ 
+@@ -54,9 +61,31 @@ public:
+     // unacknowledged peer. A failed probe marks the request for cancellation.
+     [[nodiscard]] bool poll(Clock::time_point now = Clock::now());
+ 
++    // Spawns a detached watchdog that polls the socket's is_writable() probe while a synchronous
++    // engine run (prefill / context materialization) blocks the worker thread. During that window
++    // no code on the worker calls poll(), so a disconnected client would otherwise go unnoticed
++    // and hold the engine's only slot for the whole materialization (upstream #184). The probe is
++    // read-only (MSG_PEEK via is_peer_alive) and does not touch the DataSink's buffered ostream,
++    // so it is safe to run concurrently with the worker's write() calls. When the probe reports a
++    // dead peer the watchdog sets the shared cancelled flag, which the engine observes at its next
++    // context-transaction boundary and aborts the materialization. The watchdog self-terminates
++    // when the request is marked cancelled or completed.
++    void run_watchdog() noexcept;
++
++    // Mark the stream finished so the watchdog stops polling. Called before the terminal
++    // sink.done() on the success path and from every early-return failure path via the caller.
++    void finish() noexcept { finished_.store(true, std::memory_order_release); }
++
+ private:
+     bool mark_cancelled() noexcept;
+ 
++    // True once the engine run has finished (sink.done() or terminal write). Lets the watchdog
++    // stop polling without waiting for the next interval after the request completes cleanly.
++    std::atomic<bool> finished_{false};
++
++    // Joined in ~SseTransport so the watchdog never touches sink_ after the transport is gone.
++    std::thread watchdog_;
++
+     httplib::DataSink& sink_;
+     std::atomic<bool>& cancelled_;
+     Clock::duration heartbeat_interval_;
+diff --git a/src/serve/openai_chat_http.cpp b/src/serve/openai_chat_http.cpp
+index 15ab4e6..d9f07a5 100644
+--- a/src/serve/openai_chat_http.cpp
++++ b/src/serve/openai_chat_http.cpp
+@@ -181,6 +181,7 @@ void HttpServer::handle_chat_completions(const httplib::Request& req, httplib::R
+                     };
+                     output.is_cancelled = [&] { return transport.poll(); };
+ 
++                    transport.run_watchdog();
+                     outcome = service_->run(stream->prepared, &output);
+                 } catch (const ClientDisconnected&) {
+                     lifecycle->failure(
+@@ -222,6 +223,7 @@ void HttpServer::handle_chat_completions(const httplib::Request& req, httplib::R
+                 }
+                 try {
+                     transport.write(terminal);
++                    transport.finish();
+                     sink.done();
+                     return true;
+                 } catch (const ClientDisconnected&) {
+diff --git a/src/serve/openai_responses_http.cpp b/src/serve/openai_responses_http.cpp
+index 608dee4..0c70e78 100644
+--- a/src/serve/openai_responses_http.cpp
++++ b/src/serve/openai_responses_http.cpp
+@@ -420,6 +420,7 @@ void HttpServer::handle_responses(const httplib::Request& req, httplib::Response
+                     };
+                     output.is_cancelled = [&] { return transport.poll(); };
+ 
++                    transport.run_watchdog();
+                     outcome = service_->run(stream->prepared, &output);
+                 } catch (const ClientDisconnected&) {
+                     lifecycle->failure(
+@@ -486,6 +487,7 @@ void HttpServer::handle_responses(const httplib::Request& req, httplib::Response
+                 try {
+                     transport.write(finished->events_before_terminal);
+                     transport.write(terminal);
++                    transport.finish();
+                     sink.done();
+                     return true;
+                 } catch (const ClientDisconnected&) {

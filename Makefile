@@ -40,7 +40,7 @@ TRAIN_IMAGE   := erfianugrah/lora-train:latest
 .PHONY: help setup up verify _poll-health down restart status shell audit install-timer test test-audit test-docker test-integration test-proxy-go smoke-proxy-go \
         build build-proxy build-proxy-go build-llama build-llama-pascal build-comfyui build-train \
         rebuild-proxy rebuild-proxy-go rebuild-llama rebuild-llama-pascal rebuild-comfyui rebuild-train \
-        pull push push-proxy push-proxy-go push-llama push-llama-pascal push-comfyui push-train push-ninfer build-ninfer check-ninfer-drift \
+        pull push push-proxy push-proxy-go push-llama push-llama-pascal push-comfyui push-train push-ninfer build-ninfer check-ninfer-drift apply-ninfer-patches \
         release ship ship-proxy ship-proxy-go deploy clean \
         logs-proxy logs-llama logs-comfyui logs-train \
         gpu health metrics
@@ -258,7 +258,13 @@ build-llama:
 ## attribution Apache-2.0 requires (upstream's runtime stage ships neither the
 ## license nor a notice). Two tags: a moving one matching the llama-server
 ## naming convention, and an immutable commit-pinned one.
-build-ninfer: check-ninfer-drift
+# Local patches applied on top of NINFER_PIN before every build (upstream
+# fixes we carry that upstream has not merged - see patches/ninfer/). The
+# drift guard accepts only two states: a clean tree at exactly NINFER_PIN,
+# or NINFER_PIN plus exactly the tracked patches - never arbitrary edits.
+NINFER_PATCHES := $(sort $(wildcard patches/ninfer/*.patch))
+
+build-ninfer: apply-ninfer-patches
 	@test -n "$(NINFER_COMMIT)" || { echo "no checkout at $(NINFER_SRC)"; exit 2; }
 	docker build -t ninfer:local $(NINFER_SRC)
 	docker build -f images/ninfer-redistribute.Dockerfile \
@@ -269,7 +275,11 @@ build-ninfer: check-ninfer-drift
 ## binary built from pinned upstream source. This fails when the local
 ## checkout's HEAD moved away from the reviewed commit in NINFER_PIN
 ## (someone pulled upstream without re-validating), or when the checkout is
-## dirty. Bump NINFER_PIN to re-approve after a deliberate re-validation.
+## dirty tree. Bumping NINFER_PIN re-approves after a deliberate re-validation.
+## A tree dirty with EXACTLY the tracked patches in patches/ninfer/ is also
+## accepted (that is the state apply-ninfer-patches leaves behind): every
+## patch must reverse-apply cleanly AND the modified file set must equal the
+## patch-touched file set, so no unreviewed edit can hide alongside them.
 check-ninfer-drift:
 	@test -n "$(NINFER_COMMIT)" || { echo "no checkout at $(NINFER_SRC)"; exit 2; }
 	@test -n "$(NINFER_APPROVED)" || { echo "NINFER_PIN is empty"; exit 2; }
@@ -279,10 +289,36 @@ check-ninfer-drift:
 		echo "  re-validate the engine, then: git -C $(NINFER_SRC) log --oneline -5"; \
 		exit 1; \
 	fi
-	@test -z "$$(git -C $(NINFER_SRC) status --porcelain)" || { \
-		echo "NInfer DRIFT: checkout has uncommitted changes"; \
-		git -C $(NINFER_SRC) status --short; exit 1; }
-	@echo "NInfer pin OK: $(NINFER_COMMIT) == NINFER_PIN"
+	@if [ -n "$$(git -C $(NINFER_SRC) status --porcelain)" ]; then \
+		ok=1; \
+		for p in $(NINFER_PATCHES); do \
+			git -C $(NINFER_SRC) apply --reverse --check "$(CURDIR)/$$p" 2>/dev/null || { ok=0; break; }; \
+		done; \
+		touched=$$(grep -h '^+++ ' $(NINFER_PATCHES) | awk '{print $$2}' | sed 's|^b/||' | sort -u); \
+		modified=$$(git -C $(NINFER_SRC) status --porcelain | awk '{print $$2}' | sort -u); \
+		[ "$$ok" = 1 ] && [ "$$touched" = "$$modified" ] || { \
+			echo "NInfer DRIFT: checkout has uncommitted changes beyond patches/ninfer/"; \
+			git -C $(NINFER_SRC) status --short; exit 1; }; \
+		echo "NInfer pin OK: $(NINFER_COMMIT) == NINFER_PIN + tracked patches applied"; \
+	else \
+		echo "NInfer pin OK: $(NINFER_COMMIT) == NINFER_PIN"; \
+	fi
+
+# Apply tracked local patches (idempotent: skips patches already applied).
+# check-ninfer-drift accepts either a clean pinned tree or a
+# pin-plus-tracked-patches tree; the build then sees the patched tree via
+# the Dockerfile COPY.
+apply-ninfer-patches: check-ninfer-drift
+	@for p in $(NINFER_PATCHES); do \
+		abs="$(CURDIR)/$$p"; \
+		if git -C $(NINFER_SRC) apply --reverse --check "$$abs" 2>/dev/null; then \
+			echo "patch already applied: $$p"; \
+		elif git -C $(NINFER_SRC) apply --check "$$abs" 2>/dev/null; then \
+			git -C $(NINFER_SRC) apply "$$abs" && echo "applied: $$p"; \
+		else \
+			echo "PATCH DOES NOT APPLY: $$p (upstream moved - rebase the patch)"; exit 1; \
+		fi; \
+	done
 
 push-ninfer:
 	docker push $(NINFER_PINNED)
