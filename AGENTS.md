@@ -219,6 +219,20 @@ Shipped in response:
 - All four ninfer presets moved to `max_context = 262144` (the artifact's
   native window; measured boot on d492968 leaves ~880 MiB GPU spare).
 
+Verified live the same evening, on the rebuilt engine:
+
+- **The watchdog patch works.** 127k-token fresh prompt, client `kill -9`
+  at 25s mid-prefill: the engine cancelled within its 500ms poll window
+  and the immediate follow-up request served in 0.30s. The same two-step
+  sequence is what wedged for 89 minutes that morning. Caveat: the field
+  incident was a VISION prompt cancelled deeper into materialization, so
+  this is strong evidence, not full coverage.
+- **`prefill_chunk = 4096` is a measured win**: 127k fresh prefill
+  43.4s -> 35.1s (2.93k -> 3.62k tok/s, ~19%). Set on all four ninfer
+  presets.
+- The erfianugrah/ninfer GitHub fork is ARCHIVED (nothing unique on it;
+  `patches/ninfer/` + `NINFER_PIN` is the canonical record).
+
 ### 2026-09-10: anthropic.go routing fix, watchdog, new ninfer-serve flags
 
 See `docs/plans/2026-09-10-ninfer-wedge-mitigation.md` for the full
