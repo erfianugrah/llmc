@@ -25,11 +25,15 @@ type Server struct {
 	logf     func(string, ...any)
 	anth     *AnthropicTranslator
 	watchdog *WedgeWatchdog
+	quality  *QualityLogger
 }
 
 type ServerConfig struct {
 	VRAMLimitGB   float64
 	VRAMReserveGB float64
+	// QualityLogPath enables tool-call quality telemetry (one JSONL record
+	// per tool-bearing llm request). Empty or "off" disables.
+	QualityLogPath string
 }
 
 var hopByHop = map[string]bool{
@@ -53,6 +57,14 @@ func NewServer(sched *Scheduler, presets *PresetStore, routes *RouteStore, cfg S
 		sched: sched, presets: presets, routes: routes, cfg: cfg, logf: logf,
 		anth:     NewAnthropicTranslator(logf),
 		watchdog: NewWedgeWatchdog(sched, logf),
+		quality:  NewQualityLogger(cfg.QualityLogPath, logf),
+	}
+}
+
+// CloseQuality drains and closes the quality logger (no-op when disabled).
+func (s *Server) CloseQuality() {
+	if s.quality != nil {
+		s.quality.Close()
 	}
 }
 
@@ -679,6 +691,16 @@ func (s *Server) forwardTo(w http.ResponseWriter, r *http.Request, mode, targetP
 		s.log(fmt.Sprintf("req done %s %s model=%s status=%d dur=%s%s",
 			r.Method, targetPath, orDash(model), status, time.Since(start).Round(time.Millisecond), note))
 	}()
+	// Quality canary: only tool-bearing llm requests get an observer. pi and
+	// other agent harnesses always declare tools; plain chat traffic is not
+	// the regression surface this watches.
+	var qo *qualityObserver
+	if mode == "llm" && s.quality != nil {
+		if n := peekToolCount(body); n > 0 {
+			qo = newQualityObserver(s.quality, model, s.sched.Status().Model, targetPath, n)
+			defer func() { qo.finish(status, time.Since(start), note) }()
+		}
+	}
 	svc, ok := Services[mode]
 	if !ok {
 		status = 500
@@ -775,6 +797,9 @@ func (s *Server) forwardTo(w http.ResponseWriter, r *http.Request, mode, targetP
 	for {
 		n, readErr := resp.Body.Read(buf)
 		if n > 0 {
+			if qo != nil {
+				qo.Observe(buf[:n], isStream)
+			}
 			if _, werr := w.Write(buf[:n]); werr != nil {
 				note = " client_disconnect_midstream"
 				return

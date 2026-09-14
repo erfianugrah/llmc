@@ -66,8 +66,9 @@ func main() {
 	go sched.Run()
 
 	server := proxy.NewServer(sched, store, routes, proxy.ServerConfig{
-		VRAMLimitGB:   vramLimit,
-		VRAMReserveGB: vramReserve,
+		VRAMLimitGB:    vramLimit,
+		VRAMReserveGB:  vramReserve,
+		QualityLogPath: envStr("LLMC_QUALITY_FILE", filepath.Join(stateDir, "quality.jsonl")),
 	}, logf)
 
 	// Startup log.
@@ -107,6 +108,7 @@ func main() {
 		logf("http shutdown: %v", err)
 	}
 	sched.Close()
+	server.CloseQuality()
 	logf("shutdown complete")
 }
 
