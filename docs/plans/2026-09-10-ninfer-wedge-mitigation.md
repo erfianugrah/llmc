@@ -272,6 +272,11 @@ prompt; the phase of materialization at cancel time may differ. Strong
 evidence, not proof of full coverage. If a wedge ever recurs,
 engine.jsonl's materialization block is now the first read.
 
+Also measured the same evening: `prefill_chunk = 4096` on the live preset
+took a 127k fresh prefill from 43.4s to 35.1s (2.93k -> 3.62k tok/s,
+~19%, both runs cache 0% with a nonce-busted prompt). Set on all four
+ninfer presets.
+
 ## Next steps
 
 Seven data points now (6 deliberate + this one), all clean. Varied (size, streaming, abort depth, queued

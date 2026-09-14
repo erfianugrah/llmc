@@ -235,10 +235,15 @@ func TestNinferOptionalQueueAndPrefillFlags(t *testing.T) {
 	}
 }
 
-// Unset (the staged preset's default state) omits all three - they must not
+// Unset (cleared on the staged preset) omits all three - they must not
 // silently default to a zero value the way the slot flags legitimately do.
+// The live preset sets prefill_chunk (measured +19% on a 127k fresh
+// prefill, 2026-09-14), so the test clears it explicitly.
 func TestNinferQueueAndPrefillFlagsOmittedWhenUnset(t *testing.T) {
 	p := loadStagedNinfer(t)
+	p.Ninfer.PrefillChunk = nil
+	p.Ninfer.MaxPendingRequests = nil
+	p.Ninfer.PendingTimeoutMs = nil
 	argv, _ := NinferCommand(p)
 	for _, flag := range []string{"--prefill-chunk", "--max-pending-requests", "--pending-timeout-ms"} {
 		if argvHas(argv, flag) {

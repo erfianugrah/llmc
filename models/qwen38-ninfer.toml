@@ -75,6 +75,10 @@ device_state_slots = 0
 # decisions, best_reuse_prompt_tokens) - the fields that diagnosed upstream
 # #176/#229. Lands on the host at ~/docker-volumes/ninfer/logs/engine.jsonl.
 request_log_jsonl = "/logs/engine.jsonl"
+# Measured 2026-09-14 A/B on a 127k fresh prefill: 43.4s -> 35.1s
+# (2.93k -> 3.62k tok/s, ~19%) versus unchunked. Also bounds the
+# synchronous materialization window the #184 watchdog patch has to span.
+prefill_chunk = 4096
 
 # For this engine reasoning_effort is a PER-REQUEST field, not a serve flag,
 # and the chat template rejects "high". The proxy injects this value when a

@@ -73,6 +73,9 @@ vision = true
 host_state_slots = 0
 host_kv_mib = 0
 device_state_slots = 0
+# Sibling of qwen38-ninfer.toml: same box, same 2026-09-14 A/B (+19% on a
+# 127k fresh prefill). Keep in sync.
+prefill_chunk = 4096
 
 # For this engine reasoning_effort is a PER-REQUEST field, not a serve flag,
 # and the chat template rejects "high". The proxy injects this value when a
