@@ -1,0 +1,57 @@
+name = "Qwen3.8 27B Swift NVFP4 on NInfer (overthinking-pruned, DFlash2)"
+description = """
+Quick-assessment arm for ukisai/Swift-Qwen3.8-27b (2026-09-15): a LoRA
+post-train of Qwen3.8-27B that penalizes overthinking tokens, claiming
+-58% thinking tokens at xhigh with <1% accuracy loss. Artifact is the
+COMMUNITY OrcaRouter NVFP4 repack with the stock Qwen3.8 DFlash2 head
+(Yuuyuuyuuyuu/Swift-Qwen3.8-27B-OrcaRouter-NVFP4-DFlash2-ninfer, 23.7 GB)
+- NOT the same quant recipe as the qwen38-ninfer baseline (unsloth mixed
+FP8+NVFP4 via neroued), and DFlash2 spec instead of MTP, so speed deltas
+against qwen38-ninfer are confounded by three variables. Treat this preset
+as a behavioral probe (thinking-token volume, tool-call quality flags in
+quality.jsonl), not a clean A/B. The clean arm is a self-quantized Swift
+BF16 -> mixed-recipe conversion; see docs/plans/2026-09-15-swift-eval-plan.md.
+
+Engine notes: same constraints as qwen38-ninfer (one resident model,
+sm_120a only, per-request reasoning_effort low|medium|xhigh).
+"""
+vram_gb = 23.7
+engine = "ninfer"
+capabilities = ["vision", "code"]
+
+[model]
+repo = "Yuuyuuyuuyuu/Swift-Qwen3.8-27B-OrcaRouter-NVFP4-DFlash2-ninfer"
+file = "Swift-Qwen3.8-27B-OrcaRouter-NVFP4-DFlash2.ninfer"
+id = "swift-qwen3.8-27b-nvfp4"
+
+[ninfer]
+# 131072, not 262144: the OrcaRouter artifact is 1.6 GB larger than the
+# baseline and its runtime reservation (10.5 GB at 262K) does not fit the
+# 32 GB card - boot FATALed "requires 10494870784 bytes, only 9174135808
+# available" on a free GPU 2026-09-15. 131072 is also the context the
+# community benchmarked it at.
+max_context = 131072
+max_concurrency = 1
+kv_dtype = "fp8"
+# DFlash2 head baked into the artifact (stock head, NOT retrained on Swift).
+# --spec dflash2 --draft-tokens 7 (K7, the thread's benchmark config). The
+# docs in the pinned checkout say "ln" but the d492968 binary rejects it -
+# usage shows mtp|dflash|dflash2 (crash-looped on ln 2026-09-15).
+spec = "dflash2"
+draft_tokens = 7
+lm_head_draft = true
+preserve_thinking = true
+vision = true
+host_state_slots = 0
+host_kv_mib = 0
+device_state_slots = 0
+request_log_jsonl = "/logs/engine.jsonl"
+prefill_chunk = 4096
+
+[runtime]
+reasoning = "on"
+reasoning_effort = "medium"
+max_output_tokens = 65536
+
+[bench]
+tokenizer = "unsloth/Qwen3.8-27B-GGUF"
