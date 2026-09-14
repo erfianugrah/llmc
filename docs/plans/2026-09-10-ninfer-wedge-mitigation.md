@@ -255,6 +255,23 @@ pressure path of upstream #229/#176 (5ms search budget -> maximal fallback
    the 89 min is unverified; the watchdog would NOT have fired on this
    incident).
 
+## Watchdog patch verified live (2026-09-14, evening)
+
+Controlled repro of the morning's incident against the rebuilt engine
+(d492968 + patches/ninfer/0001): 127,010-token fresh prompt, `kill -9`
+on the curl client at 25s mid-prefill. Result: req cancelled at exactly
+25.0s (the patch's 500ms socket-liveness poll caught the disconnect during
+the synchronous run - previously invisible until the whole materialization
+finished), and the immediate follow-up request served 200 in 0.30s,
+TTFT 154ms. No wedge. The same two-step sequence on 487f897 that morning
+cost 89 minutes.
+
+Caveat: not a 100% faithful repro - the morning's cancel happened 8m49s
+into a 95k VISION prompt (media 1), this one 25s into a 127k text-only
+prompt; the phase of materialization at cancel time may differ. Strong
+evidence, not proof of full coverage. If a wedge ever recurs,
+engine.jsonl's materialization block is now the first read.
+
 ## Next steps
 
 Seven data points now (6 deliberate + this one), all clean. Varied (size, streaming, abort depth, queued
