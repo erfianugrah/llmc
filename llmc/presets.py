@@ -139,6 +139,10 @@ class NinferSpec:
     device_state_slots: Optional[int] = None
     default_thinking_budget: Optional[int] = None
     kv_capacity: Optional[str] = None
+    prefill_chunk: Optional[int] = None
+    max_pending_requests: Optional[int] = None
+    pending_timeout_ms: Optional[int] = None
+    request_log_jsonl: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -218,6 +222,8 @@ _NINFER_KEYS = {
     "draft_tokens": int, "lm_head_draft": bool, "preserve_thinking": bool,
     "vision": bool, "host_state_slots": int, "host_kv_mib": int,
     "device_state_slots": int, "default_thinking_budget": int, "kv_capacity": str,
+    "prefill_chunk": int, "max_pending_requests": int, "pending_timeout_ms": int,
+    "request_log_jsonl": str,
 }
 
 

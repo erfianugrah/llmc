@@ -155,6 +155,12 @@ type NinferSpec struct {
 	// against ninfer source; see the same plan doc.
 	MaxPendingRequests *int `toml:"max_pending_requests"`
 	PendingTimeoutMs   *int `toml:"pending_timeout_ms"`
+	// RequestLogJsonl enables ninfer's --request-log-jsonl per-request
+	// diagnostics (materialization stop_reason, budget_exhausted,
+	// best_reuse_prompt_tokens - the fields that diagnosed #176/#229).
+	// Value is a container-side path; the preset points it under /logs,
+	// which SpawnNinfer binds to the llmc-ninfer-logs host dir.
+	RequestLogJsonl string `toml:"request_log_jsonl"`
 }
 
 type Preset struct {
@@ -229,6 +235,7 @@ var ninferKeys = map[string]bool{
 	"host_kv_mib": true, "device_state_slots": true,
 	"default_thinking_budget": true, "kv_capacity": true,
 	"prefill_chunk": true, "max_pending_requests": true, "pending_timeout_ms": true,
+	"request_log_jsonl": true,
 }
 
 // runtimeKeys lists the allowed [runtime] keys (typed decode is done via a

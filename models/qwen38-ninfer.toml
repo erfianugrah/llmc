@@ -49,12 +49,15 @@ id = "qwen3.8-27b-nvfp4"
 # Exactly the configuration behind every number quoted above, recovered from
 # `docker inspect` on the validated spike container.
 [ninfer]
-# The advertised ceiling. NInfer's own published eval for this exact artifact
-# (Qwen3.8-27B NVFP4) uses 252,928 "to fit the RTX 5090 after weights". The
-# engine's usable window shrinks further under desktop GPU load - a maxed-out
-# request then 400s and the client retries smaller. This is the documented
-# limit, not a guarantee under contention.
-max_context = 252928
+# 262,144 = the artifact's native window. Previously 252,928 (NInfer's own
+# published eval number "to fit the RTX 5090 after weights"); bumped
+# 2026-09-14 after measuring the d492968 boot: the extra 9,216 fp8 KV tokens
+# cost ~350 MiB over the ~31.7 GB peak, leaving ~500 MiB spare. The engine's
+# usable window still shrinks under desktop GPU load - the KV pool is
+# allocated ONCE at boot, so a boot while Chrome/Zen/WezTerm hold more VRAM
+# than usual can fail to fit; that is the documented limit, not a guarantee
+# under contention.
+max_context = 262144
 max_concurrency = 1
 kv_dtype = "fp8"
 spec = "mtp"
@@ -68,6 +71,10 @@ vision = true
 host_state_slots = 0
 host_kv_mib = 0
 device_state_slots = 0
+# Per-request engine diagnostics (materialization stop_reason, budget
+# decisions, best_reuse_prompt_tokens) - the fields that diagnosed upstream
+# #176/#229. Lands on the host at ~/docker-volumes/ninfer/logs/engine.jsonl.
+request_log_jsonl = "/logs/engine.jsonl"
 
 # For this engine reasoning_effort is a PER-REQUEST field, not a serve flag,
 # and the chat template rejects "high". The proxy injects this value when a

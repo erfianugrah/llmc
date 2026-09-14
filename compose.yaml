@@ -103,6 +103,11 @@ services:
     environment:
       LLMC_NETWORK: llmc
       HOME: ${HOME:?HOME must be set in compose runtime env}
+      # ninfer wedge auto-recovery: on a client disconnect, probe the
+      # engine's /health after a grace period; an unresponsive probe flips
+      # the upstream dead so the next acquire does a full stop+remove+create
+      # respawn. Neroued/ninfer#184, docs/plans/2026-09-10-ninfer-wedge-mitigation.md.
+      LLMC_NINFER_WEDGE_WATCHDOG: "1"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./models:/presets:ro

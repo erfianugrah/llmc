@@ -65,9 +65,10 @@ func TestNinferPresetParses(t *testing.T) {
 	if p.Ninfer == nil {
 		t.Fatal("Ninfer section is nil")
 	}
-	// 252928 is NInfer's own published ceiling for this artifact on a 5090
-	// (010ba88); the arch limit 262144 does not fit after weights.
-	if p.Ninfer.MaxContext != 252928 {
+	// 262144 is the artifact's native window. The preset used 252928 until
+	// 2026-09-14 (NInfer's published "fits the 5090 after weights" number);
+	// measured boot on d492968 showed the extra KV fits with ~500 MiB spare.
+	if p.Ninfer.MaxContext != 262144 {
 		t.Errorf("max_context = %d", p.Ninfer.MaxContext)
 	}
 	if p.Ninfer.KVDtype != "fp8" || p.Ninfer.Spec != "mtp" || p.Ninfer.DraftTokens == nil || *p.Ninfer.DraftTokens != 3 {
@@ -152,7 +153,7 @@ func TestNinferCommand(t *testing.T) {
 	want := map[string]string{
 		"--model-id":           "qwen3.8-27b-nvfp4",
 		"--host":               "0.0.0.0",
-		"--max-context":        "252928",
+		"--max-context":        "262144",
 		"--max-concurrency":    "1",
 		"--kv-dtype":           "fp8",
 		"--spec":               "mtp",
@@ -243,6 +244,27 @@ func TestNinferQueueAndPrefillFlagsOmittedWhenUnset(t *testing.T) {
 		if argvHas(argv, flag) {
 			t.Errorf("%s should be omitted when unset", flag)
 		}
+	}
+}
+
+// request_log_jsonl is a string path (container-side), not a pointer flag:
+// set in the live preset so the materialization diagnostics that diagnosed
+// upstream #176/#229 are always captured.
+func TestNinferRequestLogFlag(t *testing.T) {
+	p := loadStagedNinfer(t)
+	argv, err := NinferCommand(p)
+	if err != nil {
+		t.Fatalf("NinferCommand: %v", err)
+	}
+	got, ok := argvValue(argv, "--request-log-jsonl")
+	if !ok || got != "/logs/engine.jsonl" {
+		t.Errorf("--request-log-jsonl = %q (ok=%v), want /logs/engine.jsonl", got, ok)
+	}
+
+	p.Ninfer.RequestLogJsonl = ""
+	argv, _ = NinferCommand(p)
+	if argvHas(argv, "--request-log-jsonl") {
+		t.Errorf("--request-log-jsonl should be omitted when unset")
 	}
 }
 

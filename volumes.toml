@@ -42,6 +42,12 @@ path = "llama-server/models"
 # verified against upstream SHA256SUMS.
 path = "ninfer/models"
 
+[volumes.llmc-ninfer-logs]
+# NInfer --request-log-jsonl engine diagnostics (materialization stop_reason,
+# budget decisions per request). Mounted rw only when a ninfer preset sets
+# request_log_jsonl.
+path = "ninfer/logs"
+
 [volumes.llmc-comfyui-models]
 # Diffusion checkpoints, LoRAs, VAE, upscalers (full tree)
 path = "comfyui/models"

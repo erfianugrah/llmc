@@ -77,7 +77,7 @@ NINFER_SERVICE = GpuService(
     name="ninfer_server",
     hostname="ninfer-server",
     mode="llm",
-    image=os.environ.get("LLMC_NINFER_IMAGE", "erfianugrah/ninfer:cuda13.1-sm120a-487f897"),
+    image=os.environ.get("LLMC_NINFER_IMAGE", "erfianugrah/ninfer:cuda13.1-sm120a-d492968"),
     internal_port=8080,
     health_path="/health",
 )
@@ -149,6 +149,10 @@ def ninfer_command(preset: Preset) -> list[str]:
         ("--device-state-slots", spec.device_state_slots),
         ("--default-thinking-budget", spec.default_thinking_budget),
         ("--kv-capacity", spec.kv_capacity),
+        ("--prefill-chunk", spec.prefill_chunk),
+        ("--max-pending-requests", spec.max_pending_requests),
+        ("--pending-timeout-ms", spec.pending_timeout_ms),
+        ("--request-log-jsonl", spec.request_log_jsonl),
     ):
         if value is not None:
             argv += [flag, str(value)]
@@ -364,12 +368,15 @@ class Orchestrator:
         The artifact directory is mounted read-only: ninfer only ever reads
         its `.ninfer` file, and unlike the llama flow there is nothing to
         download into the mount at spawn time."""
+        volumes = {
+            "llmc-ninfer-models": {"bind": "/models", "mode": "ro"},
+        }
+        if preset.ninfer and preset.ninfer.request_log_jsonl:
+            volumes["llmc-ninfer-logs"] = {"bind": "/logs", "mode": "rw"}
         return self.spawn(
             NINFER_SERVICE,
             command=ninfer_command(preset),
-            volumes={
-                "llmc-ninfer-models": {"bind": "/models", "mode": "ro"},
-            },
+            volumes=volumes,
         )
 
     def spawn_llm(self, preset: Preset):

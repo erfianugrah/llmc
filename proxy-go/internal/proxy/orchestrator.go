@@ -38,7 +38,7 @@ var (
 // NinferService serves the same mode as llama.cpp: both are the LLM and the
 // GPU holds one workload at a time. It is deliberately NOT in Services (which
 // maps mode -> service 1:1); resolve it from the preset via LLMServiceFor.
-var NinferService = GpuService{Name: "ninfer_server", Hostname: "ninfer-server", Mode: "llm", Image: envOr("LLMC_NINFER_IMAGE", "erfianugrah/ninfer:cuda13.1-sm120a-487f897"), InternalPort: 8080, HealthPath: "/health"}
+var NinferService = GpuService{Name: "ninfer_server", Hostname: "ninfer-server", Mode: "llm", Image: envOr("LLMC_NINFER_IMAGE", "erfianugrah/ninfer:cuda13.1-sm120a-d492968"), InternalPort: 8080, HealthPath: "/health"}
 
 // LLMServiceFor returns the container that serves this preset. Two engines
 // share mode "llm", so the mode alone cannot decide - the preset does.
@@ -76,6 +76,9 @@ func NinferCommand(p *Preset) ([]string, error) {
 	}
 	if n.KVCapacity != "" {
 		argv = append(argv, "--kv-capacity", n.KVCapacity)
+	}
+	if n.RequestLogJsonl != "" {
+		argv = append(argv, "--request-log-jsonl", n.RequestLogJsonl)
 	}
 	// Pointer checks, not zero checks: 0 is meaningful for the slot flags
 	// (the WSL2 pinned-host workaround) and must still be emitted.
@@ -248,9 +251,13 @@ func (o *DockerOrchestrator) SpawnNinfer(p *Preset) error {
 	if err != nil {
 		return &OrchestratorError{Msg: err.Error()}
 	}
-	return o.spawnCmd(NinferService, nil, map[string]BindSpec{
+	mounts := map[string]BindSpec{
 		"llmc-ninfer-models": {Bind: "/models", Mode: "ro"},
-	}, 2048, nil, argv)
+	}
+	if p.Ninfer.RequestLogJsonl != "" {
+		mounts["llmc-ninfer-logs"] = BindSpec{Bind: "/logs", Mode: "rw"}
+	}
+	return o.spawnCmd(NinferService, nil, mounts, 2048, nil, argv)
 }
 
 // SpawnLLM starts whichever engine the preset names. Callers that reached for
