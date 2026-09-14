@@ -175,18 +175,49 @@ How the two differ, and what the proxy does about it:
   LFM presets. llama.cpp remains the multi-model engine.
 - **Upstream drift is guarded.** The engine builds from a pinned checkout in
   `.ninfer/src/ninfer`; the reviewed commit is recorded in `NINFER_PIN`
-  (repo root, tracked). `make build-ninfer` runs `check-ninfer-drift` first
-  and fails the build if the checkout's HEAD moved off the approved commit
-  or the tree is dirty. To adopt a new upstream commit, re-validate the
-  engine and bump NINFER_PIN in the same change. The redistributed image tag
+  (repo root, tracked; currently `d492968`). `make build-ninfer` runs
+  `check-ninfer-drift` first, then `apply-ninfer-patches`: local patches we
+  carry for unmerged upstream bugs live in `patches/ninfer/*.patch` (see its
+  README) and are applied idempotently before the Docker build. The drift
+  guard accepts exactly two states - a clean tree at `NINFER_PIN`, or the
+  pin plus exactly the tracked patches (reverse-apply + file-set check);
+  any other local edit fails the build. To adopt a new upstream commit,
+  re-validate the engine, rebase the patches if upstream touched the same
+  files, and bump NINFER_PIN in the same change. The redistributed image tag
   carries the commit (`ninfer:cuda13.1-sm120a-<sha>`), so the label cannot
-  drift from what was built. The runtime artifact's bytes are audited
+  drift from what was built. There is NO GitHub fork in the flow
+  (erfianugrah/ninfer deleted 2026-09-14) - the patches/ dir is the
+  canonical record. The runtime artifact's bytes are audited
   separately by `llmc audit` against upstream sha256.
 
 Known gaps: `LoadedLlamaModel` probes only llama-server, so a proxy
 restart with ninfer resident forces one needless swap. (The context/vision
 column gap noted here previously is fixed - `llmc models` now shows a
 ninfer preset's real `ninfer.max_context` and `vision = yes`.)
+
+### 2026-09-14: #184 wedge CONFIRMED in the field; engine rebased to d492968
+
+The wedge reproduced in production (8th data point, see the plan doc): a
+95k-token vision prompt aborted mid-materialization left the engine in a
+state that wedged the NEXT request for 89 minutes (17.6 tok/s, host 0%,
+then self-recovered) - the wedged request's own client never disconnected.
+Shipped in response:
+
+- Engine pin 487f897 -> d492968 (upstream #176 materialization-budget
+  rework + b88c0f6 host-upload sync fix).
+- The 2026-09-10 local watchdog patch - which had been sitting UNCOMMITTED
+  in the checkout and was never in any image - is now
+  `patches/ninfer/0001-sse-transport-watchdog.patch`, applied by
+  `make build-ninfer`.
+- `WedgeWatchdog` ENABLED via `LLMC_NINFER_WEDGE_WATCHDOG=1` in
+  compose.yaml (it would NOT have fired on this incident - no client_gone
+  on the wedged request - but covers the classic variant).
+- New preset key `request_log_jsonl` (Go + Python schema) writes
+  per-request materialization diagnostics to
+  `~/docker-volumes/ninfer/logs/engine.jsonl` (new `llmc-ninfer-logs`
+  volume) - the fields upstream #229 used to diagnose this class.
+- All four ninfer presets moved to `max_context = 262144` (the artifact's
+  native window; measured boot on d492968 leaves ~880 MiB GPU spare).
 
 ### 2026-09-10: anthropic.go routing fix, watchdog, new ninfer-serve flags
 
@@ -211,8 +242,8 @@ a fixed bug). Landed the same day:
   `client_gone` against the ninfer engine, waits a grace period then
   probes `GET /health`; on failure, reports via the existing
   `NoteUpstreamDead` path so the next acquire does a full respawn.
-  **Disabled by default** - `LLMC_NINFER_WEDGE_WATCHDOG=1` to enable.
-  Untested against a real wedge (none reproduced).
+  Enabled in production 2026-09-14 (`LLMC_NINFER_WEDGE_WATCHDOG=1` in
+  compose.yaml).
 - `qwen38` and `loop` (llama.cpp presets) had no `runtime.max_output_tokens`
   - same truncation class as the 2026-09-07 incident below, just not yet
   triggered. Set to 65536 on both.

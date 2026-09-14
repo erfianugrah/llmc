@@ -183,6 +183,78 @@ this log, mine included, and every one still finishes in seconds to
 a SUSTAINED ~30 tok/s that computed to an "85-min prefill ETA" - nothing
 here gets remotely close to that.
 
+## 8th data point (2026-09-14): field reproduction, and it changes the trigger model
+
+The wedge reproduced in production, without any synthetic attempt. Sequence
+(times UTC; ninfer's own request log):
+
+```
+04:35:20 req#1 started | 95,067-token prompt, cache 0%, media 1 (an image)
+04:44:09 req#1 cancelled at 8m49s (user abort mid-prefill) - logged clean,
+         HTTP 499, and the slot released (req#2 queued only 35ms)
+04:44:41 req#2 started | 95,073-token retry, cache 0%, media 1
+06:14:40 req#2 done | TTFT 1h29m, prefill 17.6 tok/s SUSTAINED, then
+         self-recovered: burst through the rest of the prefill in ~4 min
+         and completed normally; requests #3-6 right after were fully
+         normal (TTFT 188ms-5.7s)
+```
+
+Three properties that rewrite the trigger model from the earlier sections:
+
+1. **The wedged request's client NEVER disconnected.** The disconnect was on
+   the PREVIOUS request (req#1), which ninfer's log shows cancelling
+   cleanly. So the trigger is not "disconnect holds the slot" - it is
+   closer to "a mid-materialization cancel leaves engine state that poisons
+   the NEXT fresh prefill". Consistent with the untested candidate "abort
+   the ACTIVELY PROCESSING request" from the 2026-09-10 repro list, but the
+   damage shows up one request later, not on the cancelled one.
+2. **Both prompts carried vision content** (`media 1`) - another untested
+   candidate from that list.
+3. **The wedge self-recovered** (89 min, no restart) - unlike the original
+   2026-09-10 incident, which needed a full stack restart. The throughput
+   log during the wedge shows `host 0.0% (0 us)` in nearly every 5s window
+   with zero tokens processed - the engine was BLOCKED (a lock/wait), not
+   computing slowly. Whatever it waited on has an ~85-minute timeout or
+   eventual resolution.
+
+Context state at the time: 252,928-token KV pool; req#2 entitlement
+(95,073 prompt + 65,536 output reservation = 160,609) plus req#1's
+potentially-retained 95k checkpoint puts the pool right at capacity - the
+pressure path of upstream #229/#176 (5ms search budget -> maximal fallback
+-> full re-prefill) explains the `cache 0%` but NOT the 89-min block.
+
+## Response shipped 2026-09-14
+
+1. **Rebased the pinned engine 487f897 -> d492968.** The two intervening
+   upstream commits both touch the wedged path: `b88c0f6` fix(core):
+   complete host uploads before returning (a pageable-H2D sync bug) and
+   `d492968` perf(runtime): materialization search + planning-budget rework
+   (closes #176). Reviewed both diffs; b88c0f6 is 9 lines, d492968 is the
+   planner rewrite with its own CTests. NINFER_PIN bumped.
+2. **The local #184 watchdog patch is now durable.** It was written
+   2026-09-10 as UNCOMMITTED edits in the .ninfer checkout and was never in
+   the running image (built 2026-09-07) - the engine that wedged today was
+   vanilla 487f897. It now lives at `patches/ninfer/0001-sse-transport-
+   watchdog.patch`, applied by `make apply-ninfer-patches` (idempotent) as
+   part of `make build-ninfer`. check-ninfer-drift accepts exactly two
+   states: clean-at-pin, or pin+exactly-the-tracked-patches (verified by
+   reverse-apply check + file-set equality); anything else still fails.
+3. **Enabled `--request-log-jsonl` on the qwen38-ninfer preset** (new
+   `request_log_jsonl` preset key, wired through presets.go +
+   orchestrator.go, mounts the new `llmc-ninfer-logs` volume at /logs).
+   Per-request materialization diagnostics (stop_reason, budget_exhausted,
+   best_reuse_prompt_tokens) now land at
+   ~/docker-volumes/ninfer/logs/engine.jsonl - the fields #229 used, so the
+   next wedge is diagnosable instead of inferred from throughput logs.
+4. **Enabled the proxy-side WedgeWatchdog** (`LLMC_NINFER_WEDGE_WATCHDOG=1`
+   in compose.yaml). Caveat from earlier sections still stands: its
+   recovery is a respawn, which inherits the boot-time OOM exposure if
+   desktop GPU usage is elevated at that moment. The watchdog only fires on
+   a client_gone + failed health probe - today's wedge had NEITHER (the
+   wedged request's client never left, and whether /health answered during
+   the 89 min is unverified; the watchdog would NOT have fired on this
+   incident).
+
 ## Next steps
 
 Seven data points now (6 deliberate + this one), all clean. Varied (size, streaming, abort depth, queued
