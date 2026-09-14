@@ -279,6 +279,20 @@ with its own state dir (`~/docker-volumes/state-go`). The Python proxy
 (`model-proxy`) is stopped and kept on :11436 as the rollback lane
 (swap the published ports back to revert).
 
+**Quality telemetry (2026-09-14, `internal/proxy/quality.go`):** every
+tool-bearing llm request appends one JSONL record to
+`/state/quality.jsonl` (host `~/docker-volumes/state-go/quality.jsonl`;
+`LLMC_QUALITY_FILE=off` disables). Flags per record: `leak` (tool_call
+markup in content), `unclosed`, `args_bad` (invalid/missing tool-call
+arguments JSON), `truncated` (finish_reason=length), plus model, preset,
+duration, status. Clean requests are recorded too - that is the
+denominator, so a failure rate per preset is one jq/duckdb query. This
+is the longitudinal answer to "is the NVFP4 quant quietly degrading
+agent traffic" - the bench suite samples six short tasks on demand; this
+watches production continuously. Non-blocking (buffered channel, drop +
+count on full, never slows a stream). The Anthropic `/v1/messages` path
+is NOT instrumented - pi's native /v1 traffic is the regression surface.
+
 ```bash
 make build-proxy-go   # build the Go image
 make test-proxy-go    # go test -race (host toolchain)
