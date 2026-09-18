@@ -175,7 +175,7 @@ How the two differ, and what the proxy does about it:
   LFM presets. llama.cpp remains the multi-model engine.
 - **Upstream drift is guarded.** The engine builds from a pinned checkout in
   `.ninfer/src/ninfer`; the reviewed commit is recorded in `NINFER_PIN`
-  (repo root, tracked; currently `d492968`). `make build-ninfer` runs
+  (repo root, tracked; currently `6cc95cc5`). `make build-ninfer` runs
   `check-ninfer-drift` first, then `apply-ninfer-patches`: local patches we
   carry for unmerged upstream bugs live in `patches/ninfer/*.patch` (see its
   README) and are applied idempotently before the Docker build. The drift
@@ -194,6 +194,33 @@ Known gaps: `LoadedLlamaModel` probes only llama-server, so a proxy
 restart with ninfer resident forces one needless swap. (The context/vision
 column gap noted here previously is fixed - `llmc models` now shows a
 ninfer preset's real `ninfer.max_context` and `vision = yes`.)
+
+### 2026-09-18: engine rebased to 6cc95cc5 (v3 artifacts) - DECODE REGRESSION OPEN
+
+Bumped d492968 -> 6cc95cc5 so the CaptainArni Swift v3 artifact could load
+(v3 format landed upstream after the old pin; the new engine REJECTS v2
+artifacts with a pointer to tools/upgrade_ninfer_v2_to_v3.py). Watchdog
+patch 0001 re-applies clean. Baseline artifact upgraded offline
+(qwen3_8_27b_nvfp4_v3.ninfer; bytes preserved) and qwen38-ninfer
+repointed; the v2 original is still on disk. LLMC_NINFER_IMAGE in
+compose.yaml pins the spawned image to the commit tag.
+
+REGRESSION (open, blocks Swift adoption - user's speed gate): after the
+bump, user-visible decode on BOTH ninfer arms is ~55-60 tok/s where the
+validated d492968 + v2-artifact stack does 127-131 tok/s on an identical
+short-context probe (same flags, same card, same hour, MTP acceptance
+healthy at 62-79% on the new stack - the slowdown is per-step rate, not
+speculation failure). Attribution pending: 6cc95cc5 is exactly what
+CaptainArni benchmarked at 140-150 tok/s, so suspects are (a) the v3
+artifact format / offline upgrade, (b) an interaction with our preset
+flags (fp8 KV + 262144 ctx - he benched int8 KV at <=224k), (c) one of
+the 40 upstream commits behaving differently on our config. Direct
+isolation is impossible with current artifacts (old engine can't read v3,
+new engine can't read v2). Next: probe new engine with int8 KV / smaller
+ctx; then bisect or ask upstream. Old image cuda13.1-sm120a-d492968 and
+the v2 artifact remain on disk for rollback: set LLMC_NINFER_IMAGE back
+and revert the qwen38-ninfer `file` field. The Swift CaptainArni arm is
+v3-only - it cannot run on the old engine at all.
 
 ### 2026-09-14: #184 wedge CONFIRMED in the field; engine rebased to d492968
 

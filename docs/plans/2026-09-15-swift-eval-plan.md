@@ -115,7 +115,7 @@ questions; speed comparisons against baseline are indicative only.
    September spike - likely desktop GPU contention during the run; not
    chased, equal for both arms so comparisons hold).
 
-5. Report: Phase 0 verdict POSITIVE: the trim is real and targets the
+5. Report: Phase 0 verdict POSITIVE on quality: the trim is real and targets the
    pathological case specifically, quality is equal-or-indistinguishable
    on every probe, tool-call shape clean. Go for production soak. Phase 1
    (self-quant) ON HOLD: ukisai announced Swift 1.5 (bugfix + more RL)
@@ -123,6 +123,17 @@ questions; speed comparisons against baseline are indicative only.
    would be obsolete on arrival. Soak the CaptainArni arm instead
    (quality.jsonl + engine.jsonl, 3-7 days per arm) and revisit Phase 1
    against the 1.5 BF16 checkpoint.
+
+   AMENDMENT (later 2026-09-18): the user's adoption gate is trim +
+   accuracy + SPEED, and the speed leg currently FAILS - but on the
+   engine, not the model. A/B on identical probes: old stack (d492968 +
+   v2 artifact) 127-131 tok/s decode, new stack (6cc95cc5 + v3, both
+   arms) ~55-60 tok/s, MTP acceptance healthy on both. Attribution
+   pending (v3 format vs our fp8-KV/262144 flags vs upstream commit);
+   see the 2026-09-18 section of AGENTS.md for the suspect list and
+   rollback path. The trim results above stand (token counts are
+   engine-independent); the soak is blocked until decode speed is
+   restored.
 
 ## Phase 1 - full test (needs self-quant pipeline)
 
