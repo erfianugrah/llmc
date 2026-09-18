@@ -1,3 +1,5 @@
+> **Status (2026-09-18): CLOSED - done.** The clean A/B ran (see the parity scorecard); standing knowledge is in AGENTS.md's Engines section and docs/reference/. Kept for history.
+
 # 2026-09-08 - NInfer vs llama.cpp A/B: prep, fixes, and the clean run
 
 The question from the session: "is the test flawed?" and "is qwen dumber on

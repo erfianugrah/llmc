@@ -1,3 +1,5 @@
+> **Status (2026-09-18): CLOSED - shipped and verified live 2026-09-14** (8d86555). Standing config: AGENTS.md sections dated 2026-09-10 / 2026-09-14 / 2026-09-18. Upstream #184 remains open; the watchdog covers it. Kept for history.
+
 ### Ninfer context-materialization wedge - mitigation
 
 ## Root cause (confirmed 2026-09-10, prior session)

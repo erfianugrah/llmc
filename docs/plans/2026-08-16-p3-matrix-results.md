@@ -1,3 +1,5 @@
+> **Status (2026-09-18): FINAL - historical results doc.** Later numbers live in bench/results/ and the 2026-09-08 parity scorecard. Kept for history.
+
 # P3 matrix results (2026-08-17)
 
 Final state of the local-model bench matrix. Supersedes the partial commit from

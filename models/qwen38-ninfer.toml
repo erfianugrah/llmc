@@ -42,8 +42,13 @@ engine = "ninfer"
 capabilities = ["vision", "code"]
 
 [model]
+# Upstream re-released this artifact as native v3 container format
+# (2026-09-18: verified against the repo's SHA256SUMS, bytes
+# 74d2c571...77d82), replacing the local offline v2->v3 upgrade. The v2
+# original is kept on disk as qwen3_8_27b_nvfp4_v2.ninfer - it is the only
+# rollback path for the pre-v3 engine (d492968 image).
 repo = "neroued/Qwen3.8-27B-nvfp4-NInfer"
-file = "qwen3_8_27b_nvfp4_v3.ninfer"
+file = "qwen3_8_27b_nvfp4.ninfer"
 id = "qwen3.8-27b-nvfp4"
 
 # Exactly the configuration behind every number quoted above, recovered from

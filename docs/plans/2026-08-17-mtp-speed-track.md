@@ -1,3 +1,5 @@
+> **Status (2026-09-18): SUPERSEDED.** llama.cpp MTP was disqualified by the P5 findings (docs/reference/speculative-decoding.md); speculative decoding is delivered by the NInfer engine instead (2026-09-06 spike, adopted 2026-09-07). Kept for history.
+
 # Plan: MTP speculative-decoding speed track (qwen38 + small models)
 
 Date: 2026-08-17

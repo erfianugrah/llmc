@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development (recommended) or implement this plan task-by-task in-session. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **Status (2026-08-21): COMPLETE.** Every task landed; the only open item is the deferred retirement of `llmc/proxy.py` + the rollback service after 2-4 weeks of stable Go-proxy operation (decision window ~2026-09-04 to 09-18). Task 8c's driver-hardening lessons are loop-harness scope, not this repo.
+> **Status (2026-08-21): COMPLETE.** Every task landed. Update 2026-09-18: the deferred rollback-lane question is DECIDED - the Python proxy stays as an engine-blind llama.cpp-only lane (AGENTS.md, proxy-go section); full retirement unpicked but the drift question is closed. Task 8c's driver-hardening lessons are loop-harness scope, not this repo.
 
 **Goal:** empirically determine the maximum usable per-slot context for qwen38 (and any future preset) by measuring generation throughput at real KV occupancy - not at empty-prompt allocation - and land the remaining proxy-v2 cutover followups.
 

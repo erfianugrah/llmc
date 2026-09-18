@@ -1,3 +1,5 @@
+> **Status (2026-09-18): CLOSED - runs completed.** Results: 2026-09-08-ninfer-parity-scorecard.md. Kept for history.
+
 # Resuming the NInfer accuracy runs (GPU required)
 
 Everything below needs the GPU and the stack up. Current state: GPU free,

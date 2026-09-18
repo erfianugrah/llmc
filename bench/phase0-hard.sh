@@ -4,6 +4,8 @@
 # Usage: phase0-hard.sh <preset-name>
 set -u
 PRESET="$1"
+MODEL_ID="${2:-auto}"  # name the served id explicitly - "auto" is refused under a preset lock
+export MODEL_ID
 OUT=~/infra/ai/llmc/bench/results/phase0-hard-$(date +%Y%m%d-%H%M%S).jsonl
 
 fire() {
@@ -22,13 +24,13 @@ fire() {
 }
 
 for r in 1 2; do   # 2 seeds: sampled decoding varies run to run
-  fire combinatorics_r$r "$(jq -nc '{model:"auto", reasoning_effort:"xhigh", temperature:1.0, top_p:0.95, top_k:20, max_tokens:32768,
+  fire combinatorics_r$r "$(jq -nc '{model:ENVIRON["MODEL_ID"], reasoning_effort:"xhigh", temperature:1.0, top_p:0.95, top_k:20, max_tokens:32768,
     messages:[{role:"user",content:"Let N = 20!. Find the number of ordered pairs (a, b) of positive integers with a < b, gcd(a, b) = 1, and a * b = N. Justify your answer carefully."}]}')"
 
-  fire horses_r$r "$(jq -nc '{model:"auto", reasoning_effort:"xhigh", temperature:1.0, top_p:0.95, top_k:20, max_tokens:32768,
+  fire horses_r$r "$(jq -nc '{model:ENVIRON["MODEL_ID"], reasoning_effort:"xhigh", temperature:1.0, top_p:0.95, top_k:20, max_tokens:32768,
     messages:[{role:"user",content:"You have 25 horses and a track that fits 5 horses per race. You have no stopwatch; you can only observe the finishing order of each race. What is the minimum number of races needed to determine the 3 fastest horses, and what is the exact race schedule? Prove minimality."}]}')"
 
-  fire locale_debug_r$r "$(jq -nc '{model:"auto", reasoning_effort:"xhigh", temperature:1.0, top_p:0.95, top_k:20, max_tokens:32768,
+  fire locale_debug_r$r "$(jq -nc '{model:ENVIRON["MODEL_ID"], reasoning_effort:"xhigh", temperature:1.0, top_p:0.95, top_k:20, max_tokens:32768,
     messages:[{role:"user",content:"A C tool has run in CI for a year. It reads a config file containing lines like `threshold=3.14` and parses with strtod(). After migrating CI to a new container image, thresholds above 1 are silently read as their integer part (3.14 becomes 3.0). The code did not change. The old image was based on Debian bullseye, the new one on Alpine edge. Source:\n\nchar line[256];\nwhile (fgets(line, sizeof line, fp)) {\n    char *eq = strchr(line, 61);\n    if (eq) values[n++] = strtod(eq + 1, NULL);\n}\n\nDiagnose the root cause and give the fix. Explain why the base image change triggered it."}]}')"
 done
 echo "HARD BATTERY COMPLETE: $PRESET -> $OUT"

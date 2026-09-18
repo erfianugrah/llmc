@@ -1,3 +1,5 @@
+> **Status (2026-09-18): CLOSED - all steps done.** Step 1 (output cap) 2026-09-08; steps 2-4 (rename to llmc incl. llmc-dynamic.ts, references, retirement of the `external/` duplicate) landed with the 2026-09-08 repo rename. Kept for history.
+
 # 2026-09-08 - Consolidating the pi provider surface: one engine-neutral name
 
 Status: step 1 DONE (landed + engine-verified 2026-09-08: `runtime.max_output_tokens`

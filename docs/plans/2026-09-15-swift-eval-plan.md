@@ -1,7 +1,11 @@
 # Swift-Qwen3.8-27B evaluation plan
 
-2026-09-15. Status: quick assessment in progress; full test pending
-self-quantization pipeline.
+2026-09-15. Status (2026-09-18): Phase 0 COMPLETE - verdict ADOPT
+(qwen38-swift-ca-ninfer; all three user gates pass: token trim on spiral
+tasks, accuracy parity, speed 136-139 vs baseline 129-131 tok/s).
+Production soak via quality.jsonl + engine.jsonl is the live phase.
+Phase 1 (self-quant of ukisai BF16) ON HOLD pending the announced Swift
+1.5 checkpoint - re-evaluate against that when it drops.
 
 2026-09-18 update: engine bumped d492968 -> 6cc95cc5 (v3 artifact format;
 watchdog patch re-applies clean; NINFER_PIN updated, image

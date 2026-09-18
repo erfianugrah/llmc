@@ -167,9 +167,13 @@ How the two differ, and what the proxy does about it:
   route got the equivalent injection on 2026-09-10 (see below) - before
   that it could not reach ninfer at all, so the gap was moot until then.
 - **Artifacts are placed by hand.** `ensure_preset_assets` only downloads
-  mmproj/template URLs; the 22 GiB `.ninfer` file is put in
+  mmproj/template URLs; the ~21-24 GiB `.ninfer` files are put in
   `~/docker-volumes/ninfer/models/` and verified against upstream
-  SHA256SUMS. sha256 for the current artifact is in the spike plan.
+  SHA256SUMS. Since the f76e19c0 pin (2026-09-18) all artifacts are v3
+  container format: upstream re-released the baseline as native v3
+  (sha256 in its repo's SHA256SUMS/artifact-manifest.json), the Swift arm
+  is CaptainArni's v3 build (sha256 in the preset description), and the
+  v2 originals stay on disk only as the d492968 rollback path.
 - **Coverage is bounded.** Upstream registers five Qwen artifact identities
   and the build is sm_120a-only, so this engine can never serve the Gemma or
   LFM presets. llama.cpp remains the multi-model engine.
@@ -199,12 +203,14 @@ ninfer preset's real `ninfer.max_context` and `vision = yes`.)
 
 Bumped d492968 -> f76e19c0 (via 6cc95cc5) so the CaptainArni Swift v3
 artifact could load (v3 format landed upstream after the old pin; the new
-engine REJECTS v2 artifacts with a pointer to
-tools/upgrade_ninfer_v2_to_v3.py; the f76 head adds ~15 decode-path perf
-commits). Watchdog patch 0001 re-applies clean. Baseline artifact upgraded
-offline (qwen3_8_27b_nvfp4_v3.ninfer; bytes preserved) and qwen38-ninfer
-repointed; the v2 original is still on disk. LLMC_NINFER_IMAGE in
-compose.yaml pins the spawned image to the commit tag.
+engine REJECTS v2 artifacts; the f76 head adds ~15 decode-path perf
+commits). Watchdog patch 0001 re-applies clean. LLMC_NINFER_IMAGE in
+compose.yaml pins the spawned image to the commit tag. Baseline artifact:
+upstream RE-RELEASED it as native v3 mid-day (same filename, new bytes,
+verified against the repo's SHA256SUMS) - all four baseline presets again
+name the canonical `qwen3_8_27b_nvfp4.ninfer`, now v3. The v2 bytes are
+kept as `qwen3_8_27b_nvfp4_v2.ninfer` - the only rollback path for the
+d492968 image (old engine can't read v3, new engine can't read v2).
 
 A ~2.2x decode slowdown (~55-60 tok/s vs September's 139 p50) was observed
 during the Swift battery and initially blamed on the bump. WRONG - the
@@ -503,6 +509,7 @@ migrations.
 | `llmc-llama-cache`           | `~/docker-volumes/llama-server`                       | HuggingFace cache                |
 | `llmc-llama-models`          | `~/docker-volumes/llama-server/models`                | GGUFs + mmproj + templates       |
 | `llmc-ninfer-models`         | `~/docker-volumes/ninfer/models`                      | NInfer `.ninfer` artifacts (ro)  |
+| `llmc-ninfer-logs`           | `~/docker-volumes/ninfer/logs`                        | NInfer per-request engine.jsonl (request_log_jsonl) |
 | `llmc-comfyui-models`        | `~/docker-volumes/comfyui/models`                     | diffusion checkpoints            |
 | `llmc-comfyui-output`        | `~/docker-volumes/comfyui/output`                     | generated images/videos          |
 | `llmc-comfyui-input`         | `~/docker-volumes/comfyui/input`                      | uploaded inputs                  |

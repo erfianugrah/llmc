@@ -399,7 +399,7 @@ class TestNinferCommand(unittest.TestCase):
 
     def test_artifact_path_and_model_id(self):
         self.assertEqual(self.cmd[0], "ninfer-serve")
-        self.assertEqual(self.cmd[1], "/models/qwen3_8_27b_nvfp4_v3.ninfer")
+        self.assertEqual(self.cmd[1], "/models/qwen3_8_27b_nvfp4.ninfer")
         self.assertIn("--model-id", self.cmd)
         self.assertEqual(self.cmd[self.cmd.index("--model-id") + 1], "qwen3.8-27b-nvfp4")
 

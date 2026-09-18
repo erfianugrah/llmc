@@ -1,3 +1,5 @@
+> **Status (2026-09-18): CLOSED - verdict delivered (NVFP4 parity, adopted as baseline).** The longitudinal successor is the proxy's quality.jsonl telemetry (AGENTS.md, proxy-go section) - per-request tool-call quality in production instead of on-demand scorecards. Kept for history.
+
 # NInfer parity + quality scorecard (2026-09-08)
 
 The follow-up to the speed spike (`2026-09-06-ninfer-nvfp4-spike.md`): the

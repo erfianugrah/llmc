@@ -1,3 +1,5 @@
+> **Status (2026-09-18): CLOSED - outcome doc.** Effort presets (qwen38-low/xhigh, ninfer-low/xhigh) and max_output_tokens=65536 shipped; llama.cpp MTP disqualified (see docs/reference/speculative-decoding.md); speculative decoding now comes from the NInfer engine. Kept for history.
+
 # 2026-08-19 - qwen38: reasoning_effort A/B + speculative-decoding findings (P5)
 
 Session outcome doc. Raw data: `bench/results/runs.jsonl` (kind=task/perf,

@@ -1,3 +1,5 @@
+> **Status (2026-09-18): CLOSED - shipped.** routes.toml + the scheduler's acquireRoute path are live (the model lock's alias-chain refusal message names it). Kept for history.
+
 # Task Routing (auto aliases + resident-preference) Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development (recommended) or implement this plan task-by-task in-session. Steps use checkbox (`- [ ]`) syntax for tracking.
