@@ -108,6 +108,10 @@ services:
       # the upstream dead so the next acquire does a full stop+remove+create
       # respawn. Neroued/ninfer#184, docs/plans/2026-09-10-ninfer-wedge-mitigation.md.
       LLMC_NINFER_WEDGE_WATCHDOG: "1"
+      # Engine pin 6cc95cc5 (2026-09-18): v3 artifact format (CaptainArni
+      # Swift artifact requires it; d492968 rejects v3). Baseline artifact
+      # upgraded offline via tools/upgrade_ninfer_v2_to_v3.py.
+      LLMC_NINFER_IMAGE: erfianugrah/ninfer:cuda13.1-sm120a-6cc95cc5
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./models:/presets:ro

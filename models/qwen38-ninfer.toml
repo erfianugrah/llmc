@@ -43,7 +43,7 @@ capabilities = ["vision", "code"]
 
 [model]
 repo = "neroued/Qwen3.8-27B-nvfp4-NInfer"
-file = "qwen3_8_27b_nvfp4.ninfer"
+file = "qwen3_8_27b_nvfp4_v3.ninfer"
 id = "qwen3.8-27b-nvfp4"
 
 # Exactly the configuration behind every number quoted above, recovered from

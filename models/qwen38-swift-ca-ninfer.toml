@@ -1,0 +1,60 @@
+name = "Qwen3.8 27B Swift NVFP4 on NInfer (CaptainArni v3 artifact, MTP)"
+description = """
+Quick-assessment arm for ukisai/Swift-Qwen3.8-27b, second revision
+(2026-09-18): CaptainArni/Swift-Qwen3.8-27B-NInfer, a v3 .ninfer artifact
+converted from ukisai's own ModelOpt NVFP4/FP8 checkpoint (weight bytes
+imported, not requantized) with Vision, MTP and z-lab DFlash2 components.
+Served model id is the artifact's own "qwen3.8-27b".
+
+This supersedes the OrcaRouter quick arm (qwen38-swift-ninfer): smaller
+(21.2 vs 23.7 GiB weights - every MLP layer NVFP4 where the official
+recipe leaves the last 8 FP8), v3 format, and per the builder's table it
+holds 224K int8-KV with 2.47 GiB free, so the full 262144 window is
+reachable here. Author-measured on a 5090 vs the official base NVFP4
+artifact: -50% thinking tokens at xhigh (43/44 vs 41/44 graded), decode
+60.6 vs 57.5 steps/s. Confound vs qwen38-ninfer remains (different
+quantizer recipe AND the adapter); the clean arm is still the self-quant
+in docs/plans/2026-09-15-swift-eval-plan.md.
+
+REQUIRES the engine at NINFER_PIN >= 6cc95cc5: this is a v3 artifact and
+the d492968 engine rejects it outright. The baseline v2 artifact was
+upgraded offline with tools/upgrade_ninfer_v2_to_v3.py in the same change.
+
+Mirrors qwen38-ninfer serve settings (MTP k=3, fp8 KV, 262144) so
+behavioral deltas against baseline carry as few confounds as this arm
+allows.
+"""
+vram_gb = 21.2
+engine = "ninfer"
+capabilities = ["vision", "code"]
+
+[model]
+repo = "CaptainArni/Swift-Qwen3.8-27B-NInfer"
+file = "qwen3_8_27b_nvfp4swift.ninfer"
+# The artifact's embedded served id (named to drop into a setup already
+# serving base Qwen3.8) - NInfer 404s a mismatched model field, and the
+# proxy rewrites outbound requests to this value.
+id = "qwen3.8-27b"
+
+[ninfer]
+max_context = 262144
+max_concurrency = 1
+kv_dtype = "fp8"
+spec = "mtp"
+draft_tokens = 3
+lm_head_draft = true
+preserve_thinking = true
+vision = true
+host_state_slots = 0
+host_kv_mib = 0
+device_state_slots = 0
+request_log_jsonl = "/logs/engine.jsonl"
+prefill_chunk = 4096
+
+[runtime]
+reasoning = "on"
+reasoning_effort = "medium"
+max_output_tokens = 65536
+
+[bench]
+tokenizer = "unsloth/Qwen3.8-27B-GGUF"

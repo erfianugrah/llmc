@@ -3,6 +3,22 @@
 2026-09-15. Status: quick assessment in progress; full test pending
 self-quantization pipeline.
 
+2026-09-18 update: engine bumped d492968 -> 6cc95cc5 (v3 artifact format;
+watchdog patch re-applies clean; NINFER_PIN updated, image
+cuda13.1-sm120a-6cc95cc5, LLMC_NINFER_IMAGE set in compose.yaml). Baseline
+artifact upgraded offline to v3 (qwen3_8_27b_nvfp4_v3.ninfer via
+tools/upgrade_ninfer_v2_to_v3.py; preset repointed, verified serving).
+Added a SECOND quick arm: qwen38-swift-ca-ninfer
+(CaptainArni/Swift-Qwen3.8-27B-NInfer, v3, sha256
+5412a0e7...99cf7f verified, ModelOpt bytes imported not requantized) -
+supersedes the OrcaRouter arm: 21.2 GiB weights, boots at full 262144 ctx
+with fp8 KV + vision + MTP in ~8s (~1.5 GiB spare). Smoke results
+2026-09-18: boot clean; xhigh math probes 57 and 404 reasoning tokens
+(both correct, 168-192 tok/s decode); vision OK; tool-call args JSON
+clean in quality.jsonl. NOTE: the OrcaRouter preset/artifact is v2 and
+now BOOT-BROKEN under the new engine - delete or offline-upgrade before
+use.
+
 ## Subject
 
 ukisai/Swift-Qwen3.8-27b - LoRA post-train of Qwen3.8-27B that penalizes
@@ -25,7 +41,8 @@ tool-call quality survives, Swift is a drop-in latency win.
 | Arm | Quant recipe | Spec backend | Adapter |
 |---|---|---|---|
 | qwen38-ninfer (baseline) | unsloth mixed FP8+NVFP4 (neroued repack, 22.1 GB) | MTP k=3 | none |
-| qwen38-swift-ninfer (quick arm) | OrcaRouter NVFP4 (community, 23.7 GB) | DFlash2 k=7 (stock head, not retrained on Swift) | Swift LoRA |
+| qwen38-swift-ninfer (quick arm, v1) | OrcaRouter NVFP4 (community, 23.7 GB) | DFlash2 k=7 (stock head, not retrained on Swift) | Swift LoRA |
+| qwen38-swift-ca-ninfer (quick arm, v2) | CaptainArni v3, ModelOpt bytes imported (21.2 GB) | MTP k=3 (same as baseline) | Swift LoRA |
 | swift-clean (full-test arm, planned) | self-quantized mixed FP8+NVFP4 via llm-compressor, converted with tools/convert/qwen3_8_27b | MTP k=3 | Swift LoRA |
 
 Only swift-clean isolates the adapter. The quick arm answers behavioral
@@ -71,8 +88,41 @@ questions; speed comparisons against baseline are indicative only.
    - one multi-file code edit task (tool-call shape)
    - one long-context recall prompt
    Record thinking tokens + output tokens (engine.jsonl) + flags.
-5. Report: thinking-token ratio swift/baseline per effort, flag diff,
-   subjective quality notes. Decide go/no-go for Phase 1.
+
+   DONE 2026-09-18 (bench/phase0-battery.sh, results in
+   bench/results/phase0-20260918-*.jsonl). Findings:
+   - ALL answers correct on both arms at both efforts: AIME 2024 I P1 = 73
+     (x4), 3/3 needles at 13k context (x4), identical clean tool-call
+     (quality.jsonl flags all null), debug answers equivalent quality.
+   - BUT reasoning lengths were at parity (ratios 0.92-1.42) - no trim
+     visible. Root cause of the null result: the engine's default sampling
+     is GREEDY (temperature 0), and CaptainArni's -50% was measured at
+     temp 1.0/top_p 0.95/top_k 20. Overthinking spirals are a
+     sampling-time pathology; greedy base Qwen doesn't spiral on
+     easy/moderate tasks, so there is nothing for Swift to trim.
+
+   Follow-up spiral-territory battery (bench/phase0-hard.sh,
+   phase0-hard-20260918-*.jsonl): 3 harder prompts x 2 runs, xhigh,
+   temp 1.0/0.95/20. ALL correct on both arms (128, 7-races, musl locale
+   root cause + setlocale fix). The trim appeared exactly where the
+   mechanism predicts:
+   - locale_debug r1: BASELINE spiraled to 30,133 reasoning chars (9,965
+     completion tokens, 185s) vs Swift 6,549 chars (2,737 tokens, 53s) -
+     3.6x token cut, same correct answer. r2: 9,634 -> 6,068 chars.
+   - combinatorics + horses: parity within sampling noise (n=2, mixed
+     directions).
+   Decode ~50-58 tok/s on BOTH arms throughout (vs the 139 p50 from the
+   September spike - likely desktop GPU contention during the run; not
+   chased, equal for both arms so comparisons hold).
+
+5. Report: Phase 0 verdict POSITIVE: the trim is real and targets the
+   pathological case specifically, quality is equal-or-indistinguishable
+   on every probe, tool-call shape clean. Go for production soak. Phase 1
+   (self-quant) ON HOLD: ukisai announced Swift 1.5 (bugfix + more RL)
+   within days in the 2026-09-18 r/LocalLLaMA thread - a self-quant of v1
+   would be obsolete on arrival. Soak the CaptainArni arm instead
+   (quality.jsonl + engine.jsonl, 3-7 days per arm) and revisit Phase 1
+   against the 1.5 BF16 checkpoint.
 
 ## Phase 1 - full test (needs self-quant pipeline)
 
