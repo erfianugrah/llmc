@@ -227,6 +227,22 @@ model-lock section; an unlocked bench can be silently contended by any
 client POST. The battery's token-COUNT findings are unaffected (counts
 don't depend on wall speed); only its tok/s columns were invalid.
 
+2026-09-19 addendum - what swap churn looks like from the client and how
+to diagnose it: a self-correcting loop (`loop run` in another repo) whose
+harness pinned `llmc/qwen38-ninfer` fought an interactive session on
+`qwen38-swift-ca-ninfer` for 13 minutes (both explicit model names, no
+lock). Symptoms reported as "ninfer is crash looping": the CONTAINER is
+torn down and rebuilt every ~90s (the engine itself is healthy on every
+boot), client-side TTFT balloons to 40-90s (every swap wipes the engine's
+context cache, so a ~200k-token session re-prefills from scratch every
+turn - pi shows cache 0.0%), and long generations die mid-stream at the
+60s drain-grace boundary (`upstream_died_midstream` in the proxy log).
+Diagnosis path: `docker logs model_proxy_go | rg 'swap|req start'` -
+alternating model names are the tell. Resolution: one winner
+(`llmc lock`), or point the loop at the same preset as the session (the
+concurrent-loops rule: loops share ONE preset; different presets queue
+with `--wait`). loop22's harness violated that rule.
+
 ### 2026-09-14: #184 wedge CONFIRMED in the field; engine rebased to d492968
 
 The wedge reproduced in production (8th data point, see the plan doc): a
