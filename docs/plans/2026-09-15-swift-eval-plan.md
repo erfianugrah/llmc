@@ -5,7 +5,8 @@
 tasks, accuracy parity, speed 136-139 vs baseline 129-131 tok/s).
 Production soak via quality.jsonl + engine.jsonl is the live phase.
 Phase 1 (self-quant of ukisai BF16) ON HOLD pending the announced Swift
-1.5 checkpoint - re-evaluate against that when it drops.
+1.5 checkpoint - user decision 2026-09-18: wait for 1.5, then re-run
+phase0-hard against it and evaluate 1.5 directly.
 
 2026-09-18 update: engine bumped d492968 -> 6cc95cc5 (v3 artifact format;
 watchdog patch re-applies clean; NINFER_PIN updated, image
